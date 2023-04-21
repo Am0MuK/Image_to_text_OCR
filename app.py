@@ -5,14 +5,15 @@ from werkzeug.utils import secure_filename  # For secure file uploads
 import pytesseract # For OCR
 import numpy as np # For array manipulation
 import pandas as pd # For data frame manipulation
-from flask import Flask, render_template, request, redirect, url_for # For web app
+from flask import Flask, render_template, request, redirect, url_for, send_file # For web app
 from pdf2image import convert_from_path # For converting PDF to images
+import tempfile # For creating temporary files and folders
 
 
 # Define the constants
-UPLOAD_FOLDER ='C:\\Projects\\Image_to_text_OCR\\uploads' # Define a folder name for uploads # Define a folder name for uploads
+UPLOAD_FOLDER ='C:\\Users\\edyk7\\Projects\\Image_to_text_OCR\\uploads' # Define a folder name for uploads # Define a folder name for uploads
 ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'pdf'} # Add PDF to the allowed extensions
-LANG = "ron+rus" # Use both English and Russian languages
+LANG = "ron+rus" # Use both Romanian and Russian languages
 PSM = 6
 OEM = 1
 WHITELIST = "AĂăÂâBbCcDdEeFfGgHhIiÎîJjKkLlMmNnOoPpQqRrSsȘșTtȚțUuVvWwXxYyZz1234567890.-"
@@ -137,9 +138,11 @@ def extract_text(img):
 @app.route('/') # Define the route for the home page
 def home():
     return render_template('index.html') # Render the index.html template
-@app.route('/upload', methods=['GET', 'POST'])
 
-def upload_file():
+@app.route('/upload', methods=['POST'])
+
+def upload_file(): # Define the route for uploading a file
+    
     if request.method == 'POST':
         file = request.files['file']
         filename = secure_filename(file.filename)
@@ -149,8 +152,8 @@ def upload_file():
 
     return '''
         <form method="POST" enctype="multipart/form-data">
-            <input type="file" name="file">
-            <input type="submit" value="Upload">
+            #<input type="file" name="file">
+           # <input type="submit" value="Upload">
         </form>
     '''
 

@@ -210,7 +210,7 @@ def pad_crop(crop, contours, edges, border_contour, pad_px=15):
         int_area = crop_area(intersect_crops(crop, this_crop))
         new_crop = crop_in_border(union_crops(crop, this_crop))
         if 0 < int_area < this_area and crop != new_crop:
-            print '%s -> %s' % (str(crop), str(new_crop))
+            print ('%s -> %s' % (str(crop), str(new_crop)))
             changed = True
             crop = new_crop
 
@@ -243,7 +243,9 @@ def process_image(path, out_path):
     # TODO: dilate image _before_ finding a border. This is crazy sensitive!
     contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     borders = find_border_components(contours, edges)
-    borders.sort(key=lambda (i, x1, y1, x2, y2): (x2 - x1) * (y2 - y1))
+    borders.sort(key=lambda (i, x1, y1, x2, y2): 
+             (x2 - x1) * (y2 - y1), 
+             reverse=True) 
 
     border_contour = None
     if len(borders):
