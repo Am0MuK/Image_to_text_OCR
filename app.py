@@ -7,21 +7,20 @@ import os
 import PyPDF2
 from spellchecker import SpellChecker
 
-UPLOAD_FOLDER = r'C:\Users\edyk7\Projects\Image_to_text_OCR\uploads'
-
+UPLOAD_FOLDER = 'uploads'
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tessdata\ron.traineddata'
 app = Flask(__name__)
 app.secret_key = "secret_key"
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 def is_allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'jpg', 'jpeg', 'png', 'gif', 'pdf'}
-
-
 @app.route('/')
 def home():
     return render_template('index.html')
 
-@app.route('/', methods=['POST'])
+@app.route('/', methods=['GET', 'POST'])
 def upload_image():
     if 'image' not in request.files:
         flash('No file part')
@@ -72,7 +71,7 @@ def upload_image():
         image = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
 
         # OCR
-        text = pytesseract.image_to_string(image, lang='ron', config='--psm 6 --oem 4 -c tessedit_char_blacklist=АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя')
+        text = pytesseract.image_to_string(image, lang='ron', config='--psm 6 --oem 3 -c tessedit_char_blacklist=АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя')
 
         # Spell correction
         spell = SpellChecker(language='ro')
