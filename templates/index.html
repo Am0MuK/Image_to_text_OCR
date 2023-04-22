@@ -1,23 +1,12 @@
 <!doctype html>
 <html>
   <head>
-    <meta charset="UTF-8">
-    <title>Image and PDF Upload</title>
+    <title>Image to Text OCR</title>
   </head>
   <body>
-    <h1>Image and PDF Upload</h1>
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        <ul>
-          {% for message in messages %}
-            <li>{{ message }}</li>
-          {% endfor %}
-        </ul>
-      {% endif %}
-    {% endwith %}
-    <form method="POST" action="{{ url_for('upload_image') }}" enctype="multipart/form-data">
-      <label for="image">Select an image or PDF:</label><br>
-      <input type="file" name="file" id="file"><br>
+    <h1>Image to Text OCR</h1>
+    <form method="post" action="{{ url_for('upload_image') }}" enctype="multipart/form-data">
+      <input type="file" name="image" accept=".jpg, .jpeg, .png, .gif, .pdf" required>
       <input type="submit" value="Upload">
     </form>
   </body>
