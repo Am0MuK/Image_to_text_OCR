@@ -3,16 +3,19 @@ import os
 import cv2
 import pytesseract
 import pandas as pd
+import os
+import PyPDF2
 from spellchecker import SpellChecker
 
-UPLOAD_FOLDER = 'uploads'
+UPLOAD_FOLDER = r'C:\Users\edyk7\Projects\Image_to_text_OCR\uploads'
 
 app = Flask(__name__)
 app.secret_key = "secret_key"
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 def is_allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'jpg', 'jpeg', 'png', 'gif'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'jpg', 'jpeg', 'png', 'gif', 'pdf'}
+
 
 @app.route('/')
 def home():
@@ -36,8 +39,18 @@ def upload_image():
 
         image_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
-        image = cv2.imread(image_path)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        if filename.lower().endswith('.pdf'):
+            # Extract text from PDF file
+            pdf_reader = PyPDF2.PdfFileReader(open(image_path, 'rb'))
+            text = ''
+            for page_num in range(pdf_reader.getNumPages()):
+                page = pdf_reader.getPage(page_num)
+                text += page.extractText()
+
+        else:
+            # OCR image
+            image = cv2.imread(image_path)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
         # Preprocessing
         image = cv2.medianBlur(image, 5)
