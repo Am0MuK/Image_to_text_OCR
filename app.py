@@ -6,6 +6,7 @@ import pytesseract
 from pytesseract import Output
 import pandas as pd
 import os
+import numpy as np
 import PyPDF2
 import phunspell
 
@@ -20,13 +21,13 @@ app = Flask(__name__)
 app.secret_key = "secret_key"
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-def is_allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'jpg', 'jpeg', 'png', 'gif', 'pdf'}
-@app.route('/')
+def is_allowed_file(filename):  
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'jpg', 'jpeg', 'png', 'gif', 'pdf'}  
+@app.route('/')     
 def home():
     return render_template('index.html')
-
-@app.route('/', methods=['GET', 'POST'])
+    
+@app.route('/', methods=['GET', 'POST'])    
 def upload_image():
     if 'image' not in request.files:
         flash('No file part')
@@ -52,7 +53,7 @@ def upload_image():
                 text += page.extract_text()
 
         else:
-            # OCR image
+        # OCR image to text 
             image = cv2.imread(image_path)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
@@ -78,7 +79,33 @@ def upload_image():
             M = cv2.getRotationMatrix2D(center, angle, 1.0) # Get the rotation matrix
             image = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
 
-    	# OCR
+
+        # Find the contours using cv2.findContours()
+            contours, hierarchy = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Create a mask image of the same shape as the original image
+            mask = np.zeros_like(image)
+
+        # Draw the contours on the mask image using cv2.drawContours()
+            cv2.drawContours(mask, contours, -1, (255, 255, 255), -1)
+
+        # Filter out the contours that are too small or too large
+            area_thresh = 100 # You can adjust this value as needed
+            filtered_contours = []
+            for c in contours:
+                area = cv2.contourArea(c)
+                if area > area_thresh:
+                    filtered_contours.append(c)
+
+        # Create a new mask image with only the filtered contours
+            new_mask = np.zeros_like(image)
+            cv2.drawContours(new_mask, filtered_contours, -1, (255, 255, 255), -1)
+
+        # Apply the mask to the original image using cv2.bitwise_and()
+            segmented = cv2.bitwise_and(image, new_mask)
+        
+       	# OCR
+            pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe' # Set the path to tesseract.exe
             text = pytesseract.image_to_string(image, lang=LANG, config=CONFIG, output_type=Output.STRING)
             print(text) # check if text is not empty
 
@@ -103,12 +130,12 @@ def upload_image():
             text = '\n'.join(corrected_words) # join the list of words with newline characters
             text = '\n'.join([line for line in text.splitlines() if line.strip()]) # remove empty lines
 
-        #  
-            df = pd.DataFrame({'text': [text]})
+        #  Save as xml file
+            df = pd.DataFrame({'text': [text]}) 
             df.to_xml(os.path.join(app.config['UPLOAD_FOLDER'], filename + '.xml'), index=False)
 
         # Send file to user
-            return send_file(os.path.join(app.config['UPLOAD_FOLDER'], filename + '.csv'), mimetype="text/csv", as_attachment=True, download_name="data.csv")
+            return send_file(os.path.join(app.config['UPLOAD_FOLDER'], filename + '.xml'), mimetype="text/xml", as_attachment=True, download_name="data.csv")
 
 
     else:
@@ -117,4 +144,3 @@ def upload_image():
     
 if __name__ == "__main__":
     app.run(debug=True)
-    
