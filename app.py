@@ -1,146 +1,90 @@
+# Import the required modules
 from flask import Flask, render_template, request, redirect, url_for, flash, current_app, send_file
-import os 
-import cv2
-import pandas as pd
-import pytesseract
-from pytesseract import Output
-import pandas as pd
 import os
-import numpy as np
-import PyPDF2
-import phunspell
+from preprocessing import preprocess_image
+from ocr import perform_ocr
+from spell_correction import correct_spelling
+from pdf_utils import extract_text_from_pdf
+import xml.etree.ElementTree as ET
+from pathlib import Path
 
-UPLOAD_FOLDER = r'C:\Users\edyk7\Projects\Image_to_text_OCR\uploads'
-LANG = 'ron' # The language code
-PSM = 6 # The page segmentation mode
-OEM = 4 # The OCR engine mode 
-BLACKLIST = 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя' # The characters to ignore
-CONFIG = f'–psm {PSM} --oem {OEM} -c tessedit_char_blacklist={BLACKLIST}' # The configuration string
+# Define the upload folder path
+UPLOAD_FOLDER = 'C:\\Users\\edyk7\\Projects\\Image_to_text_OCR\\uploads'
 
+# Create the Flask app instance
 app = Flask(__name__)
 app.secret_key = "secret_key"
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-def is_allowed_file(filename):  
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'jpg', 'jpeg', 'png', 'gif', 'pdf'}  
-@app.route('/')     
+# Define a helper function to check if a file has a valid extension
+def is_allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'jpg', 'jpeg', 'png', 'gif', 'pdf'}
+
+# Define the home route that renders the index.html template
+@app.route('/')
 def home():
     return render_template('index.html')
-    
-@app.route('/', methods=['GET', 'POST'])    
+
+# Define the upload image route that handles the file upload and processing logic
+@app.route('/', methods=['GET', 'POST'])
 def upload_image():
-    if 'image' not in request.files:
+    # Get the file object from the request
+    file = request.files.get('image', None)
+    # If no file is found, flash a message and redirect to the home page
+    if not file:
         flash('No file part')
         return redirect(request.url)
 
-    file = request.files['image']
+    # Get the filename from the file object
     filename = file.filename
+    # If the filename is not None, proceed with the processing logic
+    if filename is not None:
+        # If the filename is empty, flash a message and redirect to the home page
+        if filename == '':
+            flash('No image selected for uploading')
+            return redirect(request.url)
 
-    if file.filename == '':
-        flash('No image selected for uploading')
-        return redirect(request.url)
+        # If the file has a valid extension, proceed with the processing logic
+        if file and is_allowed_file(filename):
+            # Save the file to the upload folder path
+            image_path = Path(current_app.root_path) / app.config['UPLOAD_FOLDER'] / filename
+            file.save(image_path)
+            # If the file is a PDF, extract text from it using pdf_utils module
+            if filename.lower().endswith('.pdf'):
+                text = extract_text_from_pdf(image_path)
+            # Otherwise, preprocess the image using preprocessing module and perform OCR using ocr module
+            else:
+                preprocessed_image = preprocess_image(image_path)
+                text = perform_ocr(preprocessed_image, lang='ron')
 
-    if file and is_allowed_file(file.filename):
-        filename = file.filename
-        image_path = os.path.join(current_app.root_path, app.config['UPLOAD_FOLDER'], filename) 
-        file.save(image_path)
-        if filename.lower().endswith('.pdf'):
-            # Extract text from PDF file
-            pdf_reader = PyPDF2.PdfReader(open(image_path, 'rb'))
-            text = ''
-            for page_num in range(pdf_reader.pages.__len__()):
-                page = pdf_reader.pages[page_num] 
-                text += page.extract_text()
+            # Correct spelling errors using spell_correction module if text is not None else use an empty string
+            corrected_text = correct_spelling(text) if text is not None else ''
 
+            # Remove empty lines from the corrected text
+            corrected_text = '\n'.join([line for line in corrected_text.splitlines() if line.strip()])
+
+            # Save the corrected text as an XML file using xml.etree.ElementTree module
+            root = ET.Element('data')
+            record = ET.SubElement(root, 'record')
+            record.text = corrected_text
+            tree = ET.ElementTree(root)
+
+            xml_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f'{filename}.xml')
+            xml_filepath_bytes = xml_filepath.encode() # Convert to bytes
+
+            tree.write(xml_filepath_bytes, encoding='utf-8', xml_declaration=True)
+
+            # Send the XML file to the user as an attachment with a download name of data.xml
+            return send_file(xml_filepath, mimetype="text/xml", as_attachment=True, download_name="data.xml")
+        # Otherwise, flash a message and redirect to the home page
         else:
-        # OCR image to text 
-            image = cv2.imread(image_path)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-        # Preprocessing
-            image = cv2.resize(image, None, fx=2, fy=2) # Resize
-            image = cv2.medianBlur(image, 5) # Blur
-            image = cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2) # Binarize	
-            image = cv2.bitwise_not(image) # Invert
-            image = cv2.morphologyEx(image, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (2,2))) # Open
-            image = cv2.dilate(image, None, iterations=3) # Dilate
-            image = cv2.erode(image, None, iterations=2)   # Remove noise
-        
-        # De-skew
-            coords = cv2.findNonZero(image) # Find non-zero pixels
-            rect = cv2.minAreaRect(coords) # Find minimum area rect
-            angle = rect[-1] # The rotation angle
-            if angle < -45:
-                angle = -(90 + angle)
-            else:
-                angle = -angle
-            (h, w) = image.shape[:2]
-            center = (w // 2, h // 2)
-            M = cv2.getRotationMatrix2D(center, angle, 1.0) # Get the rotation matrix
-            image = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
-
-
-        # Find the contours using cv2.findContours()
-            contours, hierarchy = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        # Create a mask image of the same shape as the original image
-            mask = np.zeros_like(image)
-
-        # Draw the contours on the mask image using cv2.drawContours()
-            cv2.drawContours(mask, contours, -1, (255, 255, 255), -1)
-
-        # Filter out the contours that are too small or too large
-            area_thresh = 100 # You can adjust this value as needed
-            filtered_contours = []
-            for c in contours:
-                area = cv2.contourArea(c)
-                if area > area_thresh:
-                    filtered_contours.append(c)
-
-        # Create a new mask image with only the filtered contours
-            new_mask = np.zeros_like(image)
-            cv2.drawContours(new_mask, filtered_contours, -1, (255, 255, 255), -1)
-
-        # Apply the mask to the original image using cv2.bitwise_and()
-            segmented = cv2.bitwise_and(image, new_mask)
-        
-       	# OCR
-            pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe' # Set the path to tesseract.exe
-            text = pytesseract.image_to_string(image, lang=LANG, config=CONFIG, output_type=Output.STRING)
-            print(text) # check if text is not empty
-
-        # Spell correction
-            hobj=phunspell.Phunspell('ro_RO')
-            words = text.split()
-            corrected_words = []
-            for word in words:
-                if not hobj.lookup(word):
-                    suggestions = hobj.suggest(word)
-                    suggestion_list = list(suggestions)
-                if len(suggestion_list) > 0:
-                    corrected_words.append(suggestion_list[0])
-            else:
-                corrected_words.append(word)
-
-            text = ' '.join(corrected_words)
-            print(text) # check if text is not empty and correct
-
-
-        # Remove empty lines
-            text = '\n'.join(corrected_words) # join the list of words with newline characters
-            text = '\n'.join([line for line in text.splitlines() if line.strip()]) # remove empty lines
-
-        #  Save as xml file
-            df = pd.DataFrame({'text': [text]}) 
-            df.to_xml(os.path.join(app.config['UPLOAD_FOLDER'], filename + '.xml'), index=False)
-
-        # Send file to user
-            return send_file(os.path.join(app.config['UPLOAD_FOLDER'], filename + '.xml'), mimetype="text/xml", as_attachment=True, download_name="data.csv")
-
-
+            flash('Invalid file format. Only JPG, JPEG, PNG, GIF, and PDF files are allowed.')
+            return redirect(url_for('home'))
+    # If the filename is None, flash a message and redirect to the home page
     else:
-        flash('Image successfully uploaded and OCR performed')
-        return redirect(url_for('home')) 
-    
+        flash('No filename found')
+        return redirect(url_for('home'))
+
+# Run the app in debug mode if this script is executed directly
 if __name__ == "__main__":
     app.run(debug=True)
