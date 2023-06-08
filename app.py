@@ -6,7 +6,6 @@ from ocr import perform_ocr
 from spell_correction import correct_spelling
 from pdf_utils import extract_text_from_pdf
 import xml.etree.ElementTree as ET
-from pathlib import Path
 
 # Define the upload folder path
 UPLOAD_FOLDER = 'C:\\Users\\edyk7\\Projects\\Image_to_text_OCR\\uploads'
@@ -47,7 +46,7 @@ def upload_image():
         # If the file has a valid extension, proceed with the processing logic
         if file and is_allowed_file(filename):
             # Save the file to the upload folder path
-            image_path = Path(current_app.root_path) / app.config['UPLOAD_FOLDER'] / filename
+            image_path = os.path.join(current_app.root_path, app.config['UPLOAD_FOLDER'], filename)
             file.save(image_path)
             # If the file is a PDF, extract text from it using pdf_utils module
             if filename.lower().endswith('.pdf'):

@@ -1,12 +1,21 @@
 import pytesseract
+from PIL import Image
 
 def perform_ocr(image, lang):
-    psm = 3  # The page segmentation mode
-    oem = 4  # The OCR engine mode
-    blacklist = 'ЀЁЄІЇАБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯѐёєіїабвгдежзийклмнопрстуфхцчшщъыьэюя'  # The characters to ignore
-    config = f'--psm {psm} --oem {oem} -c tessedit_char_blacklist={blacklist}'  # The configuration string
-
-    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'  # Set the path to tesseract.exe
+    # Convert the NumPy array to a PIL Image object
+    image = Image.fromarray(image)
+    
+    # Convert the image to RGB mode
+    image = image.convert('RGB')
+    
+    # Use the default configuration string
+    config = ''
+    
+    # Set the path to tesseract.exe
+    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+    
+    # Perform OCR and return the text
     text = pytesseract.image_to_string(image, lang=lang, config=config)
+    
     print(text)  # Check if text is not empty
     return text
